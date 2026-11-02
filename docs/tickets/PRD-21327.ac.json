@@ -1,0 +1,211 @@
+[
+  {
+    "id": "TC-HGF-001",
+    "ac": "AC1",
+    "text": "Given no filters, when huggingface_search_models is called with query=\"bert\" and limit=5, then exactly 5 models are returned, each with id/author/pipeline_tag/downloads/likes/tags, and has_more=true",
+    "type": "auto",
+    "tests": ["tests/test_tools.py::test_search_models_respects_limit_and_sets_has_more"]
+  },
+  {
+    "id": "TC-HGF-002",
+    "ac": "AC1",
+    "text": "Given limit omitted and no query, when huggingface_search_models is called, then the default trending-models set is returned at the default page size (20) without error",
+    "type": "auto",
+    "tests": ["tests/test_tools.py::test_search_models_default_query_and_limit"]
+  },
+  {
+    "id": "TC-HGF-003",
+    "ac": "AC1",
+    "text": "Given limit=500 (over the hard cap of 100), when huggingface_search_models is called, then it returns invalid_argument and makes no outbound call",
+    "type": "auto",
+    "tests": ["tests/test_tools.py::test_search_models_rejects_limit_over_hard_cap"]
+  },
+  {
+    "id": "TC-HGF-004",
+    "ac": "AC2",
+    "text": "Given repo_id=\"bert-base-uncased\", when huggingface_get_model is called, then it returns the model's tags/pipeline_tag/license/siblings count",
+    "type": "auto",
+    "tests": ["tests/test_tools.py::test_get_model_returns_card_fields"]
+  },
+  {
+    "id": "TC-HGF-005",
+    "ac": "AC2",
+    "text": "Given a repo_id that does not exist, when huggingface_get_model is called, then it returns not_found, not a raw 404 passthrough or a 500",
+    "type": "auto",
+    "tests": ["tests/test_tools.py::test_get_model_maps_404_to_not_found"]
+  },
+  {
+    "id": "TC-HGF-006",
+    "ac": "AC3",
+    "text": "Given query=\"imdb\", when huggingface_search_datasets is called, then matching datasets are returned with the documented fields",
+    "type": "auto",
+    "tests": ["tests/test_tools.py::test_search_datasets_happy_path"]
+  },
+  {
+    "id": "TC-HGF-007",
+    "ac": "AC3",
+    "text": "Given a nonexistent dataset repo_id, when huggingface_get_dataset is called, then it returns not_found",
+    "type": "auto",
+    "tests": ["tests/test_tools.py::test_get_dataset_maps_404_to_not_found"]
+  },
+  {
+    "id": "TC-HGF-008",
+    "ac": "AC4",
+    "text": "Given query=\"gradio\", when huggingface_search_spaces is called, then matching Spaces are returned including sdk and stage",
+    "type": "auto",
+    "tests": ["tests/test_tools.py::test_search_spaces_includes_sdk_and_stage"]
+  },
+  {
+    "id": "TC-HGF-009",
+    "ac": "AC4",
+    "text": "Given a nonexistent Space repo_id, when huggingface_get_space is called, then it returns not_found",
+    "type": "auto",
+    "tests": ["tests/test_tools.py::test_get_space_maps_404_to_not_found"]
+  },
+  {
+    "id": "TC-HGF-010",
+    "ac": "AC5",
+    "type": "manual",
+    "text": "Given a valid token, when huggingface_whoami is called, then it returns the token owner's name/type/orgs",
+    "steps": [
+      "Export a real Hugging Face read-scope token as HF_TOKEN",
+      "Start the service locally",
+      "curl -s -X POST localhost:8080/mcp -H 'Accept: application/json, text/event-stream' -H \"X-Huggingface-Token: $HF_TOKEN\" -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"huggingface_whoami\",\"arguments\":{}}}'"
+    ],
+    "expect": "200 response whose result contains name, type (user|org), and an orgs array (possibly empty)",
+    "result": "untested",
+    "notes": "needs a real vendor account (no shared HF test token on this queue); not a blocker per vendor-mcp-development SOP \"no test account\" rule"
+  },
+  {
+    "id": "TC-HGF-011",
+    "ac": "AC5",
+    "type": "manual",
+    "text": "Given a syntactically-present but invalid/expired token, when huggingface_whoami is called, then it returns unauthorized (mapped from the Hub's 401), not a raw exception or 500",
+    "steps": [
+      "Start the service locally",
+      "curl with X-Huggingface-Token: hf_invalid_dummy_token_0000",
+      "Call huggingface_whoami"
+    ],
+    "expect": "Tool result is the structured error envelope with code=unauthorized, retryable=false; HTTP transport itself still returns 200 (MCP-level error, not transport 401 -- the 401 in AC10 is specifically for the *missing* header case)",
+    "result": "untested",
+    "notes": "needs a real vendor account to obtain a token shape the Hub will actually reject with 401 rather than a malformed-token 400; not a blocker"
+  },
+  {
+    "id": "TC-HGF-012",
+    "ac": "AC6",
+    "type": "manual",
+    "text": "Given a token for an account with zero repos of a given repo_type, when huggingface_list_owned_repos is called, then it returns an empty items list, not not_found",
+    "steps": [
+      "Use a real token for an account (or a freshly created one) with no datasets",
+      "Call huggingface_list_owned_repos with repo_type=dataset"
+    ],
+    "expect": "result is {\"items\": [], \"has_more\": false}, not an error",
+    "result": "untested",
+    "notes": "needs a real vendor account; not a blocker"
+  },
+  {
+    "id": "TC-HGF-013",
+    "ac": "AC7",
+    "text": "Given an existing public repo_id and its default revision, when huggingface_list_repo_files is called, then it returns the file tree with path/size for each entry",
+    "type": "auto",
+    "tests": ["tests/test_tools.py::test_list_repo_files_returns_tree"]
+  },
+  {
+    "id": "TC-HGF-014",
+    "ac": "AC7",
+    "text": "Given an existing repo_id but a nonexistent revision, when huggingface_list_repo_files is called, then it returns not_found",
+    "type": "auto",
+    "tests": ["tests/test_tools.py::test_list_repo_files_unknown_revision_is_not_found"]
+  },
+  {
+    "id": "TC-HGF-015",
+    "ac": "AC8",
+    "type": "manual",
+    "text": "Given a valid token, a provider-served model, and a one-turn messages list, when huggingface_run_inference is called, then it returns generated text and a finish_reason",
+    "steps": [
+      "Export a real HF token with inference access as HF_TOKEN",
+      "Call huggingface_run_inference with model=\"meta-llama/Llama-3.1-8B-Instruct\", messages=[{role:user, content:\"Say hi in one word\"}]"
+    ],
+    "expect": "result contains a non-empty text field and a finish_reason (e.g. \"stop\")",
+    "result": "untested",
+    "notes": "needs a real vendor account with inference-provider access; not a blocker"
+  },
+  {
+    "id": "TC-HGF-016",
+    "ac": "AC8",
+    "type": "manual",
+    "text": "Given a model that is currently loading/unavailable on every provider, when huggingface_run_inference is called, then it returns upstream_error with retryable: true, not a raw 503",
+    "steps": [
+      "Call huggingface_run_inference against a model known to be cold/rarely served, or simulate via a provider that returns 503 with estimated_time"
+    ],
+    "expect": "result is the error envelope with code=upstream_error, retryable=true",
+    "result": "untested",
+    "notes": "needs a real vendor account; provider cold-start timing is not reliably reproducible without one -- covered by a mocked-transport unit test for the mapping logic itself (dev leg should add tests/test_tools.py::test_run_inference_maps_503_to_upstream_error as an auto case alongside this)"
+  },
+  {
+    "id": "TC-HGF-017",
+    "ac": "AC8",
+    "type": "manual",
+    "text": "Given a provider that returns 429, when huggingface_run_inference is called, then it returns rate_limited with retryable: true",
+    "steps": [
+      "Call huggingface_run_inference repeatedly in a tight loop against a real account until a 429 is observed, or rely on the mocked-transport unit test for the mapping"
+    ],
+    "expect": "result is the error envelope with code=rate_limited, retryable=true",
+    "result": "untested",
+    "notes": "needs a real vendor account to reproduce end to end; the mapping itself is also covered by an auto unit test the dev leg should add (tests/test_tools.py::test_run_inference_maps_429_to_rate_limited)"
+  },
+  {
+    "id": "TC-HGF-018",
+    "ac": "AC9",
+    "type": "manual",
+    "text": "Given a valid Write-scope token and an existing, not-yet-liked repo, when huggingface_like_repo is called twice in a row, then both calls succeed and the second call does not error or create a duplicate like",
+    "steps": [
+      "Export a real HF token with Write scope as HF_TOKEN",
+      "Call huggingface_like_repo on a model repo_id not yet liked by that account, twice in a row"
+    ],
+    "expect": "both calls return {\"liked\": true}; the Hub shows exactly one like from that account afterwards",
+    "result": "untested",
+    "notes": "needs a real vendor account with a Write-scope token; not a blocker"
+  },
+  {
+    "id": "TC-HGF-019",
+    "ac": "AC9",
+    "type": "manual",
+    "text": "Given a nonexistent repo_id, when huggingface_like_repo is called, then it returns not_found",
+    "steps": [
+      "Call huggingface_like_repo with a repo_id that does not exist on the Hub"
+    ],
+    "expect": "result is the error envelope with code=not_found",
+    "result": "untested",
+    "notes": "needs a real vendor account (the like endpoint requires auth before it will even evaluate whether the repo exists); not a blocker"
+  },
+  {
+    "id": "TC-HGF-020",
+    "ac": "AC10",
+    "text": "Given a tool call with no X-Huggingface-Token header, when any tool is called, then the server returns 401 naming the required header, before any outbound Hugging Face call is made",
+    "type": "auto",
+    "tests": ["tests/test_middleware.py::test_missing_credential_header_returns_401_before_any_outbound_call"]
+  },
+  {
+    "id": "TC-HGF-021",
+    "ac": "AC11",
+    "text": "Given two concurrent requests carrying token A and token B respectively, when both call huggingface_whoami at the same time, then request A's response never contains token B's identity or vice versa",
+    "type": "auto",
+    "tests": ["tests/test_middleware.py::test_concurrent_requests_with_different_tokens_never_cross"]
+  },
+  {
+    "id": "TC-HGF-022",
+    "ac": "AC11",
+    "type": "manual",
+    "text": "Given the service running locally with a mocked Hugging Face backend, when 10 concurrent huggingface_search_models calls are sustained for 30 seconds, then the P95 latency added by the MCP layer itself is <= 500ms and no response contains another concurrent request's data",
+    "steps": [
+      "Run the service locally with the upstream Hugging Face client swapped for a mocked transport with a fixed 50ms simulated latency",
+      "Run a load tool (e.g. hey or a small asyncio script) at 10 concurrent requests sustained for 30s against POST /mcp tools/call huggingface_search_models, using a distinct token per logical client",
+      "Record per-request latency and subtract the mocked backend's fixed 50ms to isolate the MCP layer's own overhead",
+      "Assert every response's items correspond only to that request's own token/query combination"
+    ],
+    "expect": "P95 of (observed latency - 50ms mocked backend latency) <= 500ms; zero cross-request data contamination",
+    "result": "untested",
+    "notes": "operational load test; run once the service is implemented and runnable, in the dev leg's self-test pass"
+  }
+]
