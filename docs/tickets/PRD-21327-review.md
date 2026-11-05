@@ -22,6 +22,8 @@ Verdict: changes requested
    - Verified against a running instance, not just the unit tests: started the server locally (`MCP_HTTP_PORT=8099 uv run python -m huggingface_mcp`, to avoid a leftover server from an unrelated ticket already bound to the default port 8080) and drove it with `curl`: `/health` → 200; `/mcp` with no header → 401 with `{"tool": null, "status": 401, ...}` logged; `initialize` and `tools/list` with a placeholder `X-Huggingface-Token` header → 200 with `tool` correctly populated (`"initialize"`, `"tools/list"`) and all 11 tools returned; the placeholder token string does not appear anywhere in the server's stdout/stderr across the whole session (`grep -c <token> server.log` → 0).
    - Not changed: the suggestion on `client.py`'s retry/backoff deadline — it was filed as a non-blocking `suggestion`, not a must-fix, so it stays out of scope for this round per the dev-leg rework rule (only must-fix items are addressed; the main ticket doc is not touched).
 
+Fix committed as `b8e9265` on `dev/PRD-21327` (`main` had not advanced past `a84765f` since Round 1, so no merge was needed before re-running gates).
+
 Gates re-run on the merged-with-`main` tree, after the fix above:
 - `uv run pytest -q`: **20 passed** (18 before this round; +2 new logging tests), `uv run ruff check .` and `uv run ruff format --check .` clean.
 - Chinese-character scan (`grep -rnP '[\x{4e00}-\x{9fff}]' --exclude-dir=.git --exclude-dir=.venv .`): only pre-existing hits in this review file's own Round 1 finding text (literal quotations of the Chinese-language SOP §6/§14 for citation) — nothing in `src/`, `tests/`, or `README.md`.
