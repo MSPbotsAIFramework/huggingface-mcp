@@ -1,5 +1,7 @@
 # PRD-21327 · Code review
 
+Status: frozen @ 98f7715
+
 ## Round 1 · 2026-11-05 · reviewed b91af56 (base a84765f)
 
 Verdict: changes requested
@@ -30,3 +32,23 @@ Gates re-run on the merged-with-`main` tree, after the fix above:
 - `gitleaks detect --source . --no-git`: no leaks found.
 - README Connector section: unchanged this round (not touched).
 - Local `initialize → tools/list` probe with a placeholder header: 11 tools returned, same as Round 1.
+
+## Round 2 · 2026-11-05 · reviewed 98f7715 (base a84765f)
+
+Verdict: approved
+
+### Round 1 must-fix verified fixed
+
+1. `src/huggingface_mcp/middleware.py:93-181`, `src/huggingface_mcp/__main__.py:9-14,46` — structured per-`/mcp`-request JSON logging is now present, matching the design's Non-functional wording (`docs/tickets/PRD-21327.md:167`) and the SOP §6/§14 requirement the Round 1 must-fix was filed against. Independently re-ran the gates the dev's Fixes note claims rather than taking the note on faith: `uv run pytest -q` -> 20 passed; `uv run ruff check .` and `uv run ruff format --check .` clean; `grep -rnP '[\x{4e00}-\x{9fff}]'` outside `.git` finds only this review file's own Round 1 citations of the Chinese-language SOP text, nothing in `src/`, `tests/`, or `README.md`; `gitleaks detect` clean. Read `tests/test_middleware.py::test_tool_call_emits_one_structured_log_record_without_token` and `::test_missing_header_logs_401_with_no_tool_name` directly: both assert the raw header value is absent from the serialized log record, not just that a record exists.
+2. The `receive()`-replay fix (`middleware.py:111-166`) was checked against the installed MCP SDK, not just the dev's self-report: `.venv/lib/python3.12/site-packages/mcp/server/streamable_http.py::_handle_post_request` calls `request.body()` exactly once, synchronously, *before* the `anyio.create_task_group()` that starts the SSE response writer (the only place in this code path that calls `receive()` again to watch for `http.disconnect`). Because the body read happens-before the concurrent task starts, there is no race between the single replayed `http.request` message and the real `receive()` calls that follow it — the "replay once, then pass through" design is safe for the actual call order used by this SDK version, not merely for the test's happy path.
+3. Confirmed `uvicorn.config.LOGGING_CONFIG` ships `"disable_existing_loggers": false` and only configures the `uvicorn` / `uvicorn.error` / `uvicorn.access` loggers — so `uvicorn.run()`'s internal `configure_logging()` call (which runs *after* `_configure_logging()` in `main()`) does not strip the plain-`%(message)s` root handler the fix relies on to keep the JSON log lines parseable.
+
+### Findings
+
+None. No new must-fix found in the Round 1 -> Round 2 diff (`src/huggingface_mcp/middleware.py`, `src/huggingface_mcp/__main__.py`, `tests/test_middleware.py`; scope matches the must-fix-only rework rule, no other file touched).
+
+### Suggestions
+
+Carried over from Round 1, still open, not blocking: `src/huggingface_mcp/client.py:16-120` retry/backoff has no overall per-call deadline (see Round 1 Suggestions #1). Correctly left untouched this round per the must-fix-only rework rule.
+
+Status: frozen @ 98f7715
