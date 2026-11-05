@@ -1,8 +1,17 @@
+import logging
 import sys
 
 from .config import get_settings
 from .middleware import GatewayCredentialsMiddleware
 from .server import create_mcp_server
+
+
+def _configure_logging() -> None:
+    """Plain `%(message)s` format on stderr (SOP §6): middleware.py already
+    emits complete, self-contained JSON lines per request, so the default
+    logging prefix (timestamp/level/name) would just produce invalid JSON
+    for anything parsing these logs downstream."""
+    logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stderr)
 
 
 def build_app(mcp, settings):
@@ -34,6 +43,7 @@ def build_app(mcp, settings):
 
 
 def main() -> None:
+    _configure_logging()
     settings = get_settings()
     mcp = create_mcp_server(settings)
 

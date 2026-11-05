@@ -77,6 +77,71 @@ async def test_health_endpoint_does_not_require_credentials():
     assert resp.json() == {"status": "ok"}
 
 
+async def test_tool_call_emits_one_structured_log_record_without_token(caplog):
+    """SOP §6 / design Non-functional (docs/tickets/PRD-21327.md):
+    structured request logs carrying tool name, status, latency -- and
+    never the header/token value."""
+    app = _make_app()
+    with caplog.at_level("INFO", logger="huggingface_mcp.access"):
+        with respx.mock(assert_all_called=False) as mock:
+            mock.get("https://huggingface.co/api/whoami-v2").mock(
+                return_value=httpx.Response(
+                    200,
+                    json={"name": "tenant-a", "fullname": "Tenant A", "type": "user", "orgs": []},
+                )
+            )
+            async with lifespan_running(app):
+                transport = httpx.ASGITransport(app=app)
+                base_url = "http://testserver"
+                async with httpx.AsyncClient(transport=transport, base_url=base_url) as http:
+                    resp = await http.post(
+                        "/mcp",
+                        json={
+                            "jsonrpc": "2.0",
+                            "id": 1,
+                            "method": "tools/call",
+                            "params": {"name": "huggingface_whoami", "arguments": {}},
+                        },
+                        headers={**MCP_HEADERS, "X-Huggingface-Token": "secret-token-value"},
+                    )
+
+    assert resp.status_code == 200
+    records = [r for r in caplog.records if r.name == "huggingface_mcp.access"]
+    assert len(records) == 1
+    record = json.loads(records[0].message)
+    assert record["event"] == "mcp_request"
+    assert record["tool"] == "huggingface_whoami"
+    assert record["status"] == 200
+    assert isinstance(record["latency_ms"], (int, float))
+    assert record["request_id"]
+    # Never log the credential header's value anywhere in the record.
+    assert "secret-token-value" not in json.dumps(record)
+
+
+async def test_missing_header_logs_401_with_no_tool_name(caplog):
+    app = _make_app()
+    with caplog.at_level("INFO", logger="huggingface_mcp.access"):
+        async with lifespan_running(app):
+            transport = httpx.ASGITransport(app=app)
+            async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as http:
+                await http.post(
+                    "/mcp",
+                    json={
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "method": "tools/call",
+                        "params": {"name": "huggingface_whoami", "arguments": {}},
+                    },
+                    headers=MCP_HEADERS,
+                )
+
+    records = [r for r in caplog.records if r.name == "huggingface_mcp.access"]
+    assert len(records) == 1
+    record = json.loads(records[0].message)
+    assert record["status"] == 401
+    assert record["tool"] is None
+
+
 async def test_concurrent_requests_with_different_tokens_never_cross():
     """TC-HGF-021 / AC11: two concurrent huggingface_whoami calls, two
     tokens, each response must only ever reflect its own token's identity.
